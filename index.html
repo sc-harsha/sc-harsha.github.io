@@ -1,0 +1,257 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<style>  
+    div.padded {
+      padding-top: 0px;  
+      padding-right: 100px;  
+      padding-bottom: 0.25in;  
+      padding-left: 100px;  
+    }  
+    div.text {
+      margin-left: auto;
+      margin-right: auto;
+      width: 600px;
+    }
+  </style> 
+<title>Sandeep Harsha Chanamolu  |  CS 184</title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rel="stylesheet" type="text/css" href="style.css" media="screen" />
+</head>
+<body>
+<br />
+<h1 align="middle">Final Project: Volumetric Scattering</h1>
+    <h4 align="middle">Sandeep Harsha Chanamolu</h4>
+
+    <div class="padded">
+        <div class="text">
+        <h3>Abstract</h3>
+        <p>Volumetric Scattering is the production of light effects which emulate the interactions light has when passing through a medium (such as fog).  We implemented extinction, emittance, and in-scattering effects for homogenoous density mediums, which allowed for image discoloration depending on depth, god ray effects, and fog effects.</p>
+
+        <h3>Implementation</h3>
+        <p>
+        We modelled variances in interactions with the medium through the use of three primary variables: sigma_a (absorption), sigma_e (emission), and sigma_s (scattering).  Another value, sigma_t (extinction) was computed as the sum of sigma_a and sigma_s.  Extinction is the loss of light over time as it passes through the medium due to absorption by the particles within the medium and reflected out-scattering.  Since each slice of the medium loses a fixed portion of the incoming light, the resulting <i>I_out</i> = <i>I_in</i> / e^(sigma_t * distance), where distance is the length of the ray spent within the medium.  Emission is the aggregate accumulation of illumination due to conversion of different wavelengths of light or energy to visible light by particles in the medium.  It scales over distance, so <i>I_out</i> = <i>I_in</i> * (sigma_e * distance).  Scattering can be separated into two components: in-scattering and out-scattering.  The latter is the loss of light redirected away from the camera ray by particles in the medium.  The former is the redirection of illumination into the camera ray by bouncing off particles in the medium.
+        </p>
+        <p>
+        The approach used was primarily a substitution of the regular direct and indirect lighting routines from CS 184's Project 3 (Raytracing).  The new volumetric direct and volumetric indirect lighting routines inspected the scene for volumes that intersected the ray.  If so, they would capture the interval the ray spent inside the medium, and correspondingly add emission or divide by extinction loss.  For in-scattering, we used the rendering equation described by Lafortune 1996
+        </p>
+        <p>
+        We sampled across the curve of e^(sigma_s * x), so we used a random sample <i>s</i> = -ln(random) / sigma_s.  If the resulting point (r.o + r.d * <i>s</i>) was past the expected intersection point along the ray, then we sampled the surface directly and ignored in-scattering.  If it was before, we either traced the ray again as per regular indirect illumination, or directly sampled a random light for direct illumination (this was the methodology espoused by the PBRT text as crucial in visualizing "god rays").
+        </p>
+        <p>
+        Originally, we had some troubles with scampling scattering within the medium occupying the assumed empty space between the camera and the scene, causing the entire extent of the sensor to receive blinding white light.  Switching from using arbitrarily large spherical volumes to box volumes that fit the dimensions of the scene solved this issue.  In retrospect, the construction of and dependence on an abstract SceneVolume was a good design choice, as we were able to rapidly generate a class for BoxVolume to complement SphereVolume with minimal code replication.
+        </p>
+        <p>
+        At the point of scattering, both direct and indirect scattering routed incoming illumination through a phase function embedded within the BSDF of the medium.  However, only a basic isotropic phase function that redirected light equally likely in all directions was implemented.  We multiply the pdf of the light sample (light_pdf) as well to the likelihood of scattering in the direction of the incoming light (scatter_pdf(w_out, w_in)) to emit sigma_s * <i>L_i</i> / pdf at the scatter point.  Between the sensor plane and the scatter point, we also add emission and divide for extinction.
+        </p>
+        <h3>Results & Explanation</h3>
+        <p>
+        As sigma_a, the absorption variable, increases, incoming illumination is reduced.  The effect is compounded; light entering the medium with intensity <i>I</i> will exit the medium with intensity <i>I</i>/e^(sigma_a * distance).
+        </p>
+        </div>
+        <div align="center">
+            <table style="width=100%">
+                <tr>
+                    <td align="middle">
+                    <img src="images/bunny_a00_e00.png" />
+                    <figcaption align="middle">
+                    regular
+                    </figcaption>
+                    </td>
+                </tr>
+                <tr>
+                    <td align="middle">
+                    <img src="images/bunny_a04_e00.png" />
+                    <figcaption align="middle">
+                    sigma_a = 0.4
+                    </figcaption>
+                    </td>
+                </tr>
+                <tr>
+                    <td align="middle">
+                    <img src="images/bunny_a08_e00.png" />
+                    <figcaption align="middle">
+                    sigma_a = 0.8
+                    </figcaption>
+                    </td>
+                </tr>
+                <tr>
+                    <td align="middle">
+                    <img src="images/bunny_a16_e00.png" />
+                    <figcaption align="middle">
+                    sigma_a = 1.6
+                    </figcaption>
+                    </td>
+                </tr>
+                <tr>
+                    <td align="middle">
+                    <img src="images/bunny_a32_e00.png" />
+                    <figcaption align="middle">
+                    sigma_a = 3.2
+                    </figcaption>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <br />
+        <div class="text">
+        <p>
+        As sigma_e, the emittance, variable, increases, incoming illumination is increased.  The effect is cummulative, light entering the medium with intensity <i>I</i> will exit the medium with intensity <i>I</i> + (sigma_e * distance).
+        </p>
+        </div>
+        <div align="center">
+            <table style="width=100%">
+                <tr>
+                    <td align="middle">
+                    <img src="images/bunny_a00_e00.png" />
+                    <figcaption align="middle">
+                    regular
+                    </figcaption>
+                    </td>
+                </tr>
+                <tr>
+                    <td align="middle">
+                    <img src="images/bunny_a00_e02.png" />
+                    <figcaption align="middle">
+                    sigma_e = 0.2
+                    </figcaption>
+                    </td>
+                </tr>
+                <tr>
+                    <td align="middle">
+                    <img src="images/bunny_a00_e04.png" />
+                    <figcaption align="middle">
+                    sigma_e = 0.4
+                    </figcaption>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <br />
+        <div class="text">
+        <p>
+        We can combine absorption and emittance effects for some severe discoloring off a vacuum rendering.  It is interesting, but as we will soon see, adding scattering can produce more interesting effects.
+        </p>
+        </div>
+        <div align="center">
+            <table style="width=100%">
+                <tr>
+                    <td align="middle">
+                    <img src="images/bunny_a32_e04.png" />
+                    <figcaption align="middle">
+                    sigma_a = 3.2, sigma_e = 0.4
+                    </figcaption>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <br />
+        <div class="text">
+        <p>
+        The following depicts a box containing two spheres, and a directional light shining through a gap between the cieling and the right wall.  As sigma_s, the scattering variable, increases, rays are more likely to scatter in the medium where the light is shining than reach the surface of the back and right walls.  When they scatter, direct volumetric lighting redirects the directional light into the camera, producing a "god ray" effect.  We can also note that the left sphere, being farther away, is less clearly illuminated than the right sphere, due to the contribution of the scattering variable to radiance extinction and early redirection before sampling the indirect lighting of the surface.
+        </p>
+        </div>
+        <div align="center">
+            <table style="width=100%">
+                <tr>
+                    <td align="middle">
+                    <img src="images/scatter_0_0.png" />
+                    <figcaption align="middle">
+                    regular
+                    </figcaption>
+                    </td>
+                </tr>
+                <tr>
+                    <td align="middle">
+                    <img src="images/scatter_0_1.png" />
+                    <figcaption align="middle">
+                    sigma_s = 0.1
+                    </figcaption>
+                    </td>
+                </tr>
+                <tr>
+                    <td align="middle">
+                    <img src="images/scatter_0_2.png" />
+                    <figcaption align="middle">
+                    sigma_s = 0.2
+                    </figcaption>
+                    </td>
+                </tr>
+                <tr>
+                    <td align="middle">
+                    <img src="images/scatter_0_4.png" />
+                    <figcaption align="middle">
+                    sigma_s = 0.4
+                    </figcaption>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <br />
+        <div class="text">
+        <p>
+        We can add scattering to the bunny scene to conjure up a fog effect.
+        </p>
+        </div>
+        <div align="center">
+            <table style="width=100%">
+                <tr>
+                    <td align="middle">
+                    <img src="images/bunny_a32_e04.png" />
+                    <figcaption align="middle">
+                    sigma_a = 3.2, sigma_e = 0.4, sigma_s = 0.0
+                    </figcaption>
+                    </td>
+                </tr>
+                <tr>
+                    <td align="middle">
+                    <img src="images/bunny_a32_e04_s01.png" />
+                    <figcaption align="middle">
+                    sigma_a = 3.2, sigma_e = 0.4, sigma_s = 0.1
+                    </figcaption>
+                    </td>
+                </tr>
+                <tr>
+                    <td align="middle">
+                    <img src="images/bunny_a32_e04_s02.png" />
+                    <figcaption align="middle">
+                    sigma_a = 3.2, sigma_e = 0.4, sigma_s = 0.2
+                    </figcaption>
+                    </td>
+                </tr>
+                <tr>
+                    <td align="middle">
+                    <img src="images/bunny_a32_e04_s03.png" />
+                    <figcaption align="middle">
+                    sigma_a = 3.2, sigma_e = 0.4, sigma_s = 0.3
+                    </figcaption>
+                    </td>
+                </tr>
+                <tr>
+                    <td align="middle">
+                    <img src="images/bunny_a32_e04_s04.png" />
+                    <figcaption align="middle">
+                    sigma_a = 3.2, sigma_e = 0.4, sigma_s = 0.4
+                    </figcaption>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="text">
+        <h3>References</h3>
+        <p>
+        Eric P. Lafortune and Yves D. Willems. 1996. <i>Rendering participating media with bidirectional path tracing</i>. In Proceedings of the eurographics workshop on Rendering techniques '96, Xavier Pueyo and Peter Schröder (Eds.). Springer-Verlag, London, UK, UK, 91-100.
+        </p>
+        <p>
+        Matt Pharr and Greg Humphreys. 2010. <i>Physically Based Rendering, Second Edition: From Theory to Implementation (2nd ed.).</i> Morgan Kaufmann Publishers Inc., San Francisco, CA, USA. Chapters 11, 13, 16.
+        </p>
+        </div>
+
+</div>
+</body>
+</html>
+
+
+
+
